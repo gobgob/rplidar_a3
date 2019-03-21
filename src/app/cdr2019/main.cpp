@@ -211,9 +211,11 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
 					measures << measures_to_string(nodes[pos]);
 			    }
 			}
+			measures << "\0";
 
 			//Send the data to client
-			result=HL.send_data(&(measures.str())[0u]);
+			result=HL.send_data(measures.str().c_str());
+			measures.flush();
 			//	std::cout<<result<<std::endl;
 		}while(result>=0 && running);
 		drv->stop();
