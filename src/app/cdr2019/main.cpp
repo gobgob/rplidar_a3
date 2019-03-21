@@ -52,6 +52,12 @@ string measures_to_string(rplidar_response_measurement_node_hq_t measure)
 	ostringstream angle;
 	ostringstream distance;
 	ostringstream quality;
+	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+                    (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
+                    measure.angle_z_q14,
+                    measure.dist_mm_q2,
+                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+
 	angle << std::fixed << setprecision(4) << measure.angle_z_q14;
 	distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
 	quality << std::fixed << std::setprecision(2) << measure.quality;
@@ -103,12 +109,11 @@ int main(int argc, char** argv){
 	const char * opt_com_path = NULL;
 	opt_com_path = "/dev/ttyUSB0";
 	_u32         baudrateArray[2] = {115200, 256000};
-	_u32         opt_com_baudrate = 0;
-	//ostringstream measure;
 
 	ostringstream measures;
 
 	u_result     op_result;
+	std::vector<RplidarScanMode> scanModes;
 
 
 	rplidar_response_device_info_t devinfo;
@@ -116,17 +121,18 @@ int main(int argc, char** argv){
 	// make connection...
 
 	DataSocket HL(SERVER_ADDRESS, SERVER_PORT); //Connection to the client
-	//RPLidar lidar(argc>1?argv[argc - 1]:"/dev/ttyUSB0"); //Connects to lidar
 	RPlidarDriver * drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
 	if (!drv) {
 		fprintf(stderr, "insufficent memory, exit\n");
 		exit(-2);
 	}
-size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
+	size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
         for(size_t i = 0; i < baudRateArraySize; ++i)
         {
-            if(!drv)
-                drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
+		if(!drv)
+		{
+                	drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
+		}
             if(IS_OK(drv->connect(opt_com_path, baudrateArray[i])))
             {
                 op_result = drv->getDeviceInfo(devinfo);
@@ -151,9 +157,9 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
 		return -1;
 	}
 
-// print out the device serial number, firmware and hardware version number..
-    printf("RPLIDAR S/N: ");
-    for (int pos = 0; pos < 16 ;++pos) {
+	// print out the device serial number, firmware and hardware version number..
+	printf("RPLIDAR S/N: ");
+	for (int pos = 0; pos < 16 ;++pos) {
         printf("%02X", devinfo.serialnum[pos]);
     }
 
@@ -165,15 +171,14 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
             , (int)devinfo.hardware_version);
 
 	    // check health...
-	    if (!checkRPLIDARHealth(drv)) {
+	if (!checkRPLIDARHealth(drv))
+		{
 		drv->stop();
 		drv->stopMotor();
 		return -1;
 	}
 
 	signal(SIGINT, ctrlc);
-	//lidar.print_status(); // Print model, health, sampling rates
-	//lidar.stop_motor();
 	/* ************************************
  	*                   TEST MAIN LOOP             *
  	**************************************/
@@ -194,8 +199,10 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
 
 		sleep(1);	//Let motor spin
 		std::cout<<"Un petit sleep!"<<std::endl;
+
 		// start scan...
-		drv->startScan(0, 1);
+		drv->getAllSupportedScanModes(scanModes);
+		drv->startScan(false, scanModes[0].id);
 
 		std::cout<<"start express scan ok!"<<std::endl;
 		int result;
@@ -205,15 +212,18 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
 
 			//Update current scan (one turn of measurements)
 			op_result = drv->grabScanDataHq(nodes, count);
-			if (IS_OK(op_result)) {
-			    drv->ascendScanData(nodes, count);
-			    for (int pos = 0; pos < (int)count ; ++pos) {
+			if (IS_OK(op_result)) 
+			{
+				drv->ascendScanData(nodes, count);
+				for (int pos = 0; pos < (int)count ; ++pos) 
+				{
 					measures << measures_to_string(nodes[pos]);
-			    }
+				}
 			}
 			measures << "\0";
 
 			//Send the data to client
+			std::cout << "Scan measure: " << measures.str().c_str();
 			result=HL.send_data(measures.str().c_str());
 			measures.flush();
 			//	std::cout<<result<<std::endl;
@@ -226,5 +236,6 @@ size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
 	 *************************************/
 	drv->stop();
 	drv->stopMotor();
+	//drv->disconnect();
 	return 0;
 }
