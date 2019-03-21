@@ -7,17 +7,10 @@
 
 ### How to use this?
 ```bash
-$ sudo apt-get install libnet1-dev
-$ cd sdk/app/cdr2019
-$ make
-$ cd ../../output/Linux/Release
-$ ./cdr2019
+sudo apt-get install libnet1-dev
+git clone git@github.com:gobgob/rplidar_a3.git
+cd rplidar_a3/src
+make
+./output/Linux/Release/cdr2019 &
+./../test_client.py
 ```
-
-and in an other terminal
-
-```bash
-$ ./test_client.py
-```
-
-
