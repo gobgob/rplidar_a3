@@ -13,7 +13,7 @@ public:
 	int client_socket=0;
 	struct sockaddr_in server_address;
 	DataSocket(const char *address_string, uint16_t server_port);
-	int send_data(char* data);
+	int send_data(const char* data);
     bool accept_client();
 };
 

@@ -53,7 +53,7 @@ bool DataSocket::accept_client() {
 	}
 }
 
-int DataSocket::send_data(char* data) {
+int DataSocket::send_data(const char* data) {
 
 	int result=send(client_socket, data, strlen(data), 0);
 	if(result<0){
