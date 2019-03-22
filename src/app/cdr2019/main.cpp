@@ -40,28 +40,36 @@ void signal_handler(int signo){
 		running = false;
 }
 
-string measures_to_string(rplidar_response_measurement_node_hq_t measure)
+string measures_to_string(rplidar_response_measurement_node_t measure)
 {
 
-/*	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
-				    (nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
-				    (nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
-				    nodes[pos].distance_q2/4.0f,
-				    nodes[pos].sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);*/
+	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+				    (measure.sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
+				    (measure.angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
+				    measure.distance_q2/4.0f,
+				    measure.sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
 	ostringstream result;
 	ostringstream angle;
 	ostringstream distance;
 	ostringstream quality;
-	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+
+	angle << std::fixed << setprecision(4) << (measure.angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f;
+	distance << std::fixed << std::setprecision(2) << measure.distance_q2/4.0f;
+	quality << std::fixed << std::setprecision(2) << (measure.sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+	result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";
+
+	/*printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
                     (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
                     measure.angle_z_q14,
                     measure.dist_mm_q2,
-                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);*/
 
-	angle << std::fixed << setprecision(4) << measure.angle_z_q14;
+	/*angle << std::fixed << setprecision(4) << measure.angle_z_q14;
 	distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
 	quality << std::fixed << std::setprecision(2) << measure.quality;
-	result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";
+	result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";*/
+
+
 
 	return result.str();
 }
@@ -207,11 +215,11 @@ int main(int argc, char** argv){
 		std::cout<<"start express scan ok!"<<std::endl;
 		int result;
 		do{
-			rplidar_response_measurement_node_hq_t nodes[8192];
+			rplidar_response_measurement_node_t nodes[8192];
 			size_t   count = _countof(nodes);
 
 			//Update current scan (one turn of measurements)
-			op_result = drv->grabScanDataHq(nodes, count);
+			op_result = drv->grabScanData(nodes, count);
 			if (IS_OK(op_result)) 
 			{
 				drv->ascendScanData(nodes, count);
@@ -219,14 +227,20 @@ int main(int argc, char** argv){
 				{
 					measures << measures_to_string(nodes[pos]);
 				}
-			}
-			measures << "\0";
+				measures << "\0";
 
-			//Send the data to client
-			std::cout << "Scan measure: " << measures.str().c_str();
-			result=HL.send_data(measures.str().c_str());
-			measures.flush();
-			//	std::cout<<result<<std::endl;
+				//Send the data to client
+				//std::cout << "Scan measure: " << measures.str().c_str();
+				result=HL.send_data(measures.str().c_str());
+				measures.flush();
+				//	std::cout<<result<<std::endl;
+			}
+			else
+			{
+				std::cout << "Problem\n";
+			}
+
+			
 		}while(result>=0 && running);
 		drv->stop();
 		drv->stopMotor(); //Stop motor if already running
