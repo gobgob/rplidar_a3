@@ -209,8 +209,9 @@ int main(int argc, char** argv){
 		std::cout<<"Un petit sleep!"<<std::endl;
 
 		// start scan...
-		drv->getAllSupportedScanModes(scanModes);
-		drv->startScan(false, scanModes[0].id);
+		/*drv->getAllSupportedScanModes(scanModes);
+		drv->startScan(false, scanModes[0].id);*/
+		drv->startScan(false, 1);
 
 		std::cout<<"start express scan ok!"<<std::endl;
 		int result;
@@ -225,20 +226,22 @@ int main(int argc, char** argv){
 				drv->ascendScanData(nodes, count);
 				for (int pos = 0; pos < (int)count ; ++pos) 
 				{
-					measures << measures_to_string(nodes[pos]);
+					result=HL.send_data(measures_to_string(nodes[pos]).c_str());
+					//measures << measures_to_string(nodes[pos]);
 				}
-				measures << "\0";
+				//measures << "M\0";
 
 				//Send the data to client
 				//std::cout << "Scan measure: " << measures.str().c_str();
-				result=HL.send_data(measures.str().c_str());
-				measures.flush();
+				//result=HL.send_data(measures.str().c_str());
+				//measures.flush();
 				//	std::cout<<result<<std::endl;
 			}
 			else
 			{
 				std::cout << "Problem\n";
 			}
+			usleep(100);
 
 			
 		}while(result>=0 && running);
