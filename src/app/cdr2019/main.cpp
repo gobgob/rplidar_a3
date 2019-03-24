@@ -40,9 +40,23 @@ void signal_handler(int signo){
 		running = false;
 }
 
+string measure_hq_to_string(rplidar_response_measurments_node_hq_t measure)
+{
+    printf("%s theta: %03.2f Dist: %08.2f Q: %d \n",
+                    (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ",
+                    measure.angle_z_q14,
+                    measure.dist_mm_q2,
+                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);*/
+
+    angle << std::fixed << setprecision(4) << measure.angle_z_q14;
+    distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
+    quality << std::fixed << std::setprecision(2) << measure.quality;
+    result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";
+}
+
+
 string measures_to_string(rplidar_response_measurement_node_t measure)
 {
-
 	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
 				    (measure.sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
 				    (measure.angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
@@ -57,31 +71,17 @@ string measures_to_string(rplidar_response_measurement_node_t measure)
 	distance << std::fixed << std::setprecision(2) << measure.distance_q2/4.0f;
 	quality << std::fixed << std::setprecision(2) << (measure.sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
 	result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";
-
-	/*printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
-                    (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
-                    measure.angle_z_q14,
-                    measure.dist_mm_q2,
-                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);*/
-
-	/*angle << std::fixed << setprecision(4) << measure.angle_z_q14;
-	distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
-	quality << std::fixed << std::setprecision(2) << measure.quality;
-	result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";*/
-
-
-
-	return result.str();
+    return result.str();
 }
 
 bool checkRPLIDARHealth(RPlidarDriver * drv)
 {
-    u_result     op_result;
+    u_result op_result;
+
+    // Health info
     rplidar_response_device_health_t healthinfo;
-
-
     op_result = drv->getHealth(healthinfo);
-    if (IS_OK(op_result)) { // the macro IS_OK is the preperred way to judge whether the operation is succeed.
+    if (IS_OK(op_result)) {
         printf("RPLidar health status : %d\n", healthinfo.status);
         if (healthinfo.status == RPLIDAR_STATUS_ERROR) {
             fprintf(stderr, "Error, rplidar internal error detected. Please reboot the device to retry.\n");
@@ -91,7 +91,6 @@ bool checkRPLIDARHealth(RPlidarDriver * drv)
         } else {
             return true;
         }
-
     } else {
         fprintf(stderr, "Error, cannot retrieve the lidar health code: %x\n", op_result);
         return false;
@@ -106,57 +105,49 @@ void ctrlc(int)
     ctrl_c_pressed = true;
 }
 
-int main(int argc, char** argv){
-	/* ************************************
-	*    SETUP LIDAR & CHECK STATUS  *
-	**************************************/
+int main(int argc, char** argv)
+{
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
-	running=true;
-
+	running = true;
 	const char * opt_com_path = NULL;
 	opt_com_path = "/dev/ttyUSB0";
-	_u32         baudrateArray[2] = {115200, 256000};
-
+	_u32 baudrateArray[2] = {115200, 256000};
 	ostringstream measures;
-
-	u_result     op_result;
+	u_result op_result;
 	std::vector<RplidarScanMode> scanModes;
-
-
 	rplidar_response_device_info_t devinfo;
 	bool connectSuccess = false;
-	// make connection...
 
-	DataSocket HL(SERVER_ADDRESS, SERVER_PORT); //Connection to the client
+	// make connection...
+	DataSocket HL(SERVER_ADDRESS, SERVER_PORT); // Connection to the client
 	RPlidarDriver * drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
 	if (!drv) {
 		fprintf(stderr, "insufficent memory, exit\n");
 		exit(-2);
 	}
 	size_t baudRateArraySize = (sizeof(baudrateArray))/ (sizeof(baudrateArray[0]));
-        for(size_t i = 0; i < baudRateArraySize; ++i)
+    for(size_t i = 0; i < baudRateArraySize; ++i)
+    {
+        if(!drv)
         {
-		if(!drv)
-		{
-                	drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
-		}
-            if(IS_OK(drv->connect(opt_com_path, baudrateArray[i])))
+            drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
+        }
+        if(IS_OK(drv->connect(opt_com_path, baudrateArray[i])))
+        {
+            op_result = drv->getDeviceInfo(devinfo);
+            if (IS_OK(op_result))
             {
-                op_result = drv->getDeviceInfo(devinfo);
-
-                if (IS_OK(op_result)) 
-                {
-                    connectSuccess = true;
-                    break;
-                }
-                else
-                {
-                    delete drv;
-                    drv = NULL;
-                }
+                connectSuccess = true;
+                break;
+            }
+            else
+            {
+                delete drv;
+                drv = NULL;
             }
         }
+    }
 	if (!connectSuccess) {
 		fprintf(stderr, "Error, cannot bind to the specified serial port %s.\n"
 		, opt_com_path);
@@ -178,35 +169,34 @@ int main(int argc, char** argv){
             , devinfo.firmware_version & 0xFF
             , (int)devinfo.hardware_version);
 
-	    // check health...
+	// check health...
 	if (!checkRPLIDARHealth(drv))
-		{
+	{
 		drv->stop();
 		drv->stopMotor();
 		return -1;
 	}
 
 	signal(SIGINT, ctrlc);
-	/* ************************************
- 	*                   TEST MAIN LOOP             *
- 	**************************************/
+
 	while(running) {
-		/* ************************************
-		 *                   START SCAN                    *
-		 **************************************/
 		std::cout<<"Waiting for client..."<<std::endl;
+
 		while(!HL.accept_client() && running);
 		if(!running) continue;
 
 		std::cout<<" Connected !"<<std::endl;
+
 		drv->stop();
 		drv->stopMotor();
+
 		std::cout<<"Motor stopped!"<<std::endl;
+
 		drv->startMotor();
+
 		std::cout<<"Motor started!"<<std::endl;
 
 		sleep(1);	//Let motor spin
-		std::cout<<"Un petit sleep!"<<std::endl;
 
 		// start scan...
 		/*drv->getAllSupportedScanModes(scanModes);
@@ -214,6 +204,7 @@ int main(int argc, char** argv){
 		drv->startScan(false, 1);
 
 		std::cout<<"start express scan ok!"<<std::endl;
+
 		int result;
 		do{
 			rplidar_response_measurement_node_t nodes[8192];
@@ -248,9 +239,6 @@ int main(int argc, char** argv){
 		drv->stop();
 		drv->stopMotor(); //Stop motor if already running
 	}
-	/* ***********************************
-	 *                       STOP ALL                    *
-	 *************************************/
 	drv->stop();
 	drv->stopMotor();
 	//drv->disconnect();
