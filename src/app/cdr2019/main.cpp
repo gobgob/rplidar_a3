@@ -40,14 +40,17 @@ void signal_handler(int signo){
 		running = false;
 }
 
-string measure_hq_to_string(rplidar_response_measurments_node_hq_t measure)
+string measure_hq_to_string(rplidar_response_measurement_node_hq_t measure)
 {
     printf("%s theta: %03.2f Dist: %08.2f Q: %d \n",
                     (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ",
                     measure.angle_z_q14,
                     measure.dist_mm_q2,
-                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);*/
-
+                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+    ostringstream result;
+    ostringstream angle;
+    ostringstream distance;
+    ostringstream quality;
     angle << std::fixed << setprecision(4) << measure.angle_z_q14;
     distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
     quality << std::fixed << std::setprecision(2) << measure.quality;
@@ -224,7 +227,7 @@ int main(int argc, char** argv)
 
 				//Send the data to client
 				//std::cout << "Scan measure: " << measures.str().c_str();
-				//result=HL.send_data(measures.str().c_str());
+				result=HL.send_data("M");
 				//measures.flush();
 				//	std::cout<<result<<std::endl;
 			}
