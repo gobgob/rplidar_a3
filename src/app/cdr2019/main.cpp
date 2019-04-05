@@ -40,31 +40,18 @@ void signal_handler(int signo){
 		running = false;
 }
 
-string measure_hq_to_string(rplidar_response_measurement_node_hq_t measure)
-{
-    printf("%s theta: %03.2f Dist: %08.2f Q: %d \n",
-                    (measure.quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ",
-                    measure.angle_z_q14,
-                    measure.dist_mm_q2,
-                    measure.quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-    ostringstream result;
-    ostringstream angle;
-    ostringstream distance;
-    ostringstream quality;
-    angle << std::fixed << setprecision(4) << measure.angle_z_q14;
-    distance << std::fixed << std::setprecision(2) << measure.dist_mm_q2;
-    quality << std::fixed << std::setprecision(2) << measure.quality;
-    result << angle.str() << ":" << distance.str() << ":" << quality.str() << ";";
-}
+
+
 
 
 string measures_to_string(rplidar_response_measurement_node_t measure)
 {
-	printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
-				    (measure.sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
-				    (measure.angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
-				    measure.distance_q2/4.0f,
-				    measure.sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+	//printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
+	//			    (measure.sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
+	//			    (measure.angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
+	//			    measure.distance_q2/4.0f,
+	//			    measure.sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+	
 	ostringstream result;
 	ostringstream angle;
 	ostringstream distance;
@@ -208,7 +195,7 @@ int main(int argc, char** argv)
 
 		std::cout<<"start express scan ok!"<<std::endl;
 
-		int result;
+		int result = 0;
 		do{
 			rplidar_response_measurement_node_t nodes[8192];
 			size_t   count = _countof(nodes);
@@ -247,3 +234,4 @@ int main(int argc, char** argv)
 	//drv->disconnect();
 	return 0;
 }
+
