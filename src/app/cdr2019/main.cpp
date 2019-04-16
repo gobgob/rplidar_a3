@@ -15,7 +15,8 @@
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
 #define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
-#define MAX_FAILURE_COUNT   10
+#define MAX_FAILURE_COUNT   1       // maximum consecutive scan failures allowed before restarting the lidar
+#define SORT_OUTPUT_DATA    1       // 1 => output data will be sorted by angle; 0 => output unsorted
 
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
@@ -188,12 +189,13 @@ int main(int argc, const char * argv[])
                 continue;
             }
 
+#if SORT_OUTPUT_DATA
             op_result = drv->ascendScanData(nodes, count);
             if (IS_FAIL(op_result)) {
                 fail_count++;
                 continue;
             }
-
+#endif
             for (size_t pos = 0; pos < count ; pos++)
             {
                 float angle_deg = nodes[pos].angle_z_q14 * 90.f / 16384.0f;
@@ -201,6 +203,7 @@ int main(int argc, const char * argv[])
                 uint8_t quality = nodes[pos].quality;
                 printf("Theta: %03.2f Dist: %08.2f Q: %d \n", angle_deg, dist_mm, quality);
             }
+            fail_count = 0;
         }
         if (!ctrl_c_pressed) {
             drv->stop();
