@@ -1,2 +1,3 @@
-src/obj
-src/output
+obj/
+output/
+.vscode/
