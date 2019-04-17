@@ -93,7 +93,7 @@ int DataSocket::send_data(const char* data)
 	int ret_code = 0;
 	for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
 		if (clients_socket[i] <= 0) continue;
-		int ret = send(clients_socket[i], data, strlen(data), 0);
+		int ret = send(clients_socket[i], data, strlen(data), MSG_NOSIGNAL);
 		if (ret < 0) {
 			if (errno==EPIPE || errno==ECONNRESET) {
 				printf("Client #%lu disconnected\n", i);
@@ -103,6 +103,7 @@ int DataSocket::send_data(const char* data)
 				fprintf(stderr, "Failed to send data to client #%lu\n", i);
 			}
 			shutdown(clients_socket[i], SHUT_RDWR);
+			clients_socket[i] = 0;
 		}
 	}
     return ret_code;

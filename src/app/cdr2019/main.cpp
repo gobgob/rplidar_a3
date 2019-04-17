@@ -8,14 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <wiringPi.h>
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 #include "DataSocket.hpp"
 #include "delay.h"
 
 /* Settings */
-#define SERVER_ADDRESS		"127.0.0.1"
-#define SERVER_PORT			17685
+#define SERVER_ADDRESS      "127.0.0.1"
+#define SERVER_PORT         17685
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
 #define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
@@ -63,13 +64,20 @@ bool checkRPLIDARHealth(RPlidarDriver * drv)
 /* Set the rotation speed of the Lidar */
 void runMotor(uint8_t pwm)
 {
-
+    if (pwm == 0) {
+        digitalWrite(12, LOW);
+    }
+    else {
+        digitalWrite(12, HIGH);
+    }
 }
 
 int main(int argc, const char * argv[])
 {
     signal(SIGINT, ctrlc);
-    printf("SDK Version: RPLIDAR_SDK_VERSION\n");
+    wiringPiSetupGpio();
+    pinMode(12, OUTPUT);
+    printf("SDK Version: %s\n", RPLIDAR_SDK_VERSION);
 
 	DataSocket output_socket;
     const char * opt_com_path = DEFAULT_SERIAL_PORT;

@@ -29,7 +29,7 @@ C_INCLUDES += -I$(CURDIR)
 C_INCLUDES += -I$(CURDIR)/../../sdk/include -I$(CURDIR)/../../sdk/src
 
 EXTRA_OBJ := 
-LD_LIBS += -lstdc++ -lpthread -lm
+LD_LIBS += -lstdc++ -lpthread -lm -lwiringPi
 
 all: build_app
 
