@@ -21,6 +21,8 @@
 #define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
 #define MAX_FAILURE_COUNT   1       // maximum consecutive scan failures allowed before restarting the lidar
 #define SORT_OUTPUT_DATA    1       // 1 => output data will be sorted by angle; 0 => output unsorted
+#define LIDAR_SCAN_MODE     RPLIDAR_CONF_SCAN_COMMAND_BOOST
+#define OUTPUT_BUFFER_SIZE  100
 
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
@@ -69,7 +71,7 @@ int main(int argc, const char * argv[])
     signal(SIGINT, ctrlc);
     printf("SDK Version: RPLIDAR_SDK_VERSION\n");
 
-	DataSocket output_socket(SERVER_ADDRESS, SERVER_PORT);
+	DataSocket output_socket;
     const char * opt_com_path = DEFAULT_SERIAL_PORT;
     _u32 opt_com_baudrate = DEFAULT_BAUDRATE;
     uint8_t motor_speed = DEFAULT_MOTOR_SPEED;
@@ -77,6 +79,7 @@ int main(int argc, const char * argv[])
     rplidar_response_device_info_t devinfo;
     RplidarScanMode scanmode;
     rplidar_response_measurement_node_hq_t nodes[8192];
+    char output_buffer[100] = { '\0', };
 
     // create the driver instance
 	RPlidarDriver * drv = RPlidarDriver::CreateDriver(DRIVER_TYPE_SERIALPORT);
@@ -127,8 +130,22 @@ int main(int argc, const char * argv[])
 
     printf("Serial port %s opened with baudrate %u\n", opt_com_path, opt_com_baudrate);
     
+    // try to open the output socket
+    int ret = output_socket.open(SERVER_ADDRESS, SERVER_PORT);
+    if (ret != 0) {
+        fprintf(stderr, "Error, cannot open the socket %s:%u, exit\n",
+            SERVER_ADDRESS, SERVER_PORT);
+        RPlidarDriver::DisposeDriver(drv);
+        drv = NULL;
+        exit(ret);
+    }
+
+    printf("Socket opened on %s:%u\n", SERVER_ADDRESS, SERVER_PORT);
+
     while (!ctrl_c_pressed)
     {
+        output_socket.accept_client();
+
         // Try to get S/N from the lidar
         op_result = drv->getDeviceInfo(devinfo);
         if (IS_OK(op_result))
@@ -159,7 +176,7 @@ int main(int argc, const char * argv[])
         // spin motor...
         runMotor(motor_speed);
         // start scan...
-        op_result = drv->startScanExpress(false, RPLIDAR_CONF_SCAN_COMMAND_BOOST, 0, &scanmode);
+        op_result = drv->startScanExpress(false, LIDAR_SCAN_MODE, 0, &scanmode);
         if (IS_FAIL(op_result)) {
             drv->stop();
             runMotor(0);
@@ -171,6 +188,7 @@ int main(int argc, const char * argv[])
         int fail_count = 0;
         while (!ctrl_c_pressed && fail_count <= MAX_FAILURE_COUNT)
         {
+            output_socket.accept_client();
             size_t count = _countof(nodes);
             op_result = drv->grabScanDataHq(nodes, count);
             if (IS_FAIL(op_result)) {
@@ -190,8 +208,20 @@ int main(int argc, const char * argv[])
                 float angle_deg = nodes[pos].angle_z_q14 * 90.f / 16384.0f;
                 float dist_mm = nodes[pos].dist_mm_q2 / 4.0f;
                 uint8_t quality = nodes[pos].quality;
-                printf("Theta: %03.2f Dist: %08.2f Q: %d \n", angle_deg, dist_mm, quality);
+                printf("Theta: %03.2f Dist: %08.2f Q: %u\n", angle_deg, dist_mm, quality);
+                int ret = snprintf(output_buffer, OUTPUT_BUFFER_SIZE,
+                    "%.4f:%.2f:%u;", angle_deg, dist_mm, quality);
+                if (ret < 0) {
+                    fprintf(stderr, "Failed format output\n");
+                    continue;
+                }
+                if (ret >= OUTPUT_BUFFER_SIZE) {
+                    fprintf(stderr, "Output buffer is too small\n");
+                    continue;
+                }
+                output_socket.send_data(output_buffer);
             }
+            output_socket.send_data("M");
             fail_count = 0;
         }
         if (!ctrl_c_pressed) {

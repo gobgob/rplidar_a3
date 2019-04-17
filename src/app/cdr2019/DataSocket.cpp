@@ -1,5 +1,4 @@
 #include "DataSocket.hpp"
-#include "delay.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,75 +10,100 @@
 DataSocket::DataSocket()
 {
 	server_socket = 0;
-	client_socket = 0;
-	memset(&server_address, 0, sizeof(server_address));
+	for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
+		clients_socket[i] = 0;
+	}
+}
+
+DataSocket::~DataSocket()
+{
+	shutdown(server_socket, SHUT_RDWR);
+	for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
+		shutdown(clients_socket[i], SHUT_RDWR);
+	}
 }
 
 int DataSocket::open(const char *address_string, uint16_t server_port)
 {
-	//Create socket
-	sockaddr_in* server_address_p=&server_address;
-	server_socket=socket(AF_INET, SOCK_STREAM, 0);
-	if(server_socket<=0){
+	// Create socket
+	server_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_socket <= 0) {
 		perror("Error at socket creation");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	fcntl(server_socket, F_SETFL, O_NONBLOCK); //NON BLOCKING
-	//Address config
-	server_address_p->sin_family=AF_INET;
-	server_address_p->sin_port=htons(server_port);
-	if(inet_pton(AF_INET, address_string, &server_address_p->sin_addr)<0){
+	// Set socket as NON-BLOCKING
+	if (fcntl(server_socket, F_SETFL, O_NONBLOCK) < 0) {
+		perror("Error at set non-blocking");
+		return -1;
+	}
+
+	// Address configuration
+	sockaddr_in server_address;
+	memset(&server_address, 0, sizeof(server_address));
+	server_address.sin_family = AF_INET;
+	server_address.sin_port = htons(server_port);
+	if (inet_pton(AF_INET, address_string, &server_address.sin_addr) != 1) {
 		perror("Error at address conversion");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	//Reusable addresses and ports
-	int option_value=1;
-	if(setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &option_value, sizeof(option_value))){
+	// Set option: reusable addresses and ports
+	int option_value = 1;
+	if (setsockopt(server_socket, SOL_SOCKET, (SO_REUSEADDR | SO_REUSEPORT),
+			&option_value, sizeof(option_value)) < 0) {
 		perror("Error at setsockopt");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	//Bind
-	if(bind(server_socket,(struct sockaddr*)(server_address_p), sizeof(*server_address_p))){
+	// Bind socket to address
+	if (bind(server_socket, (sockaddr*)(&server_address), sizeof(server_address)) < 0) {
 		perror("Error at bind");
-		exit(EXIT_FAILURE);
+		return -1;
 	}
 
-	//Listen with queue of size 1
-	if(listen(server_socket, 1)<0){
-		perror("Error server listen");
-		exit(EXIT_FAILURE);
+	// Start listening
+	if (listen(server_socket, DATA_SOCKET_MAX_CLIENT) < 0) {
+		perror("Error at listen");
+		return -1;
 	}
+
+	return 0;
 }
 
 bool DataSocket::accept_client()
 {
-	struct sockaddr_in* server_address_p=&server_address;
-	int addr_len=sizeof(*server_address_p);
-	int new_socket = accept(server_socket, (struct sockaddr *) server_address_p, (socklen_t *) &addr_len);
-	if(new_socket<=0){
-		delay(50);
-		return false;
+	int new_client = accept(server_socket, NULL, NULL);
+	if (new_client > 0) {
+		for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
+			if (clients_socket[i] <= 0) {
+				clients_socket[i] = new_client;
+				printf("Client #%lu connected\n", i);
+				return true;
+			}
+		}
+		shutdown(new_client, SHUT_RDWR);
+		perror("Reached max number of clients");
 	}
-	else {
-		client_socket = new_socket;
-		return true;
-	}
+	return false;
 }
 
 int DataSocket::send_data(const char* data)
 {
-
-	int result=send(client_socket, data, strlen(data), 0);
-	if(result<0){
-		if(errno==EPIPE || errno==ECONNRESET)
-			std::cout<<"Client disconnected"<<std::endl;
-		else {
-			perror("Error sending data to client");
+	int ret_code = 0;
+	for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
+		if (clients_socket[i] <= 0) continue;
+		int ret = send(clients_socket[i], data, strlen(data), 0);
+		if (ret < 0) {
+			if (errno==EPIPE || errno==ECONNRESET) {
+				printf("Client #%lu disconnected\n", i);
+			}
+			else {
+				ret_code = -1;
+				fprintf(stderr, "Failed to send data to client #%lu\n", i);
+			}
+			shutdown(clients_socket[i], SHUT_RDWR);
 		}
 	}
-
-    return result;
+    return ret_code;
 }

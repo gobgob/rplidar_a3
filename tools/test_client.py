@@ -7,14 +7,17 @@ hote = "127.0.0.1"
 port = 17685
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-socket.connect((hote, port))
+try:
+    socket.connect((hote, port))
+except ConnectionRefusedError:
+    print("Connection failed")
+    quit(0)
 print("Connection on {}".format(port))
 with open("mesures.txt", "w") as f:
-
-    while True:
-        #socket.send(b"R")
-        #time.sleep(1)
-        f.write(socket.recv(100000).decode("utf-8")+"\n")
-
+    try:
+        while True:
+            f.write(socket.recv(100000).decode("utf-8")+"\n")
+    except KeyboardInterrupt:
+        pass
 print("Close")
 socket.close()
