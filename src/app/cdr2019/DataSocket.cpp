@@ -1,8 +1,24 @@
 #include "DataSocket.hpp"
+#include "delay.h"
 
-DataSocket::DataSocket(const char *address_string, uint16_t server_port) {
+#include <stdio.h>
+#include <stdlib.h>
+#include <cstring>
+#include <iostream>
+#include <fcntl.h>
+
+
+DataSocket::DataSocket()
+{
+	server_socket = 0;
+	client_socket = 0;
+	memset(&server_address, 0, sizeof(server_address));
+}
+
+int DataSocket::open(const char *address_string, uint16_t server_port)
+{
 	//Create socket
-	struct sockaddr_in* server_address_p=&server_address;
+	sockaddr_in* server_address_p=&server_address;
 	server_socket=socket(AF_INET, SOCK_STREAM, 0);
 	if(server_socket<=0){
 		perror("Error at socket creation");
@@ -11,7 +27,6 @@ DataSocket::DataSocket(const char *address_string, uint16_t server_port) {
 
 	fcntl(server_socket, F_SETFL, O_NONBLOCK); //NON BLOCKING
 	//Address config
-	memset(server_address_p, 0, sizeof(*server_address_p));
 	server_address_p->sin_family=AF_INET;
 	server_address_p->sin_port=htons(server_port);
 	if(inet_pton(AF_INET, address_string, &server_address_p->sin_addr)<0){
@@ -39,12 +54,13 @@ DataSocket::DataSocket(const char *address_string, uint16_t server_port) {
 	}
 }
 
-bool DataSocket::accept_client() {
+bool DataSocket::accept_client()
+{
 	struct sockaddr_in* server_address_p=&server_address;
 	int addr_len=sizeof(*server_address_p);
 	int new_socket = accept(server_socket, (struct sockaddr *) server_address_p, (socklen_t *) &addr_len);
 	if(new_socket<=0){
-		usleep(50000);
+		delay(50);
 		return false;
 	}
 	else {
@@ -53,7 +69,8 @@ bool DataSocket::accept_client() {
 	}
 }
 
-int DataSocket::send_data(const char* data) {
+int DataSocket::send_data(const char* data)
+{
 
 	int result=send(client_socket, data, strlen(data), 0);
 	if(result<0){
@@ -66,4 +83,3 @@ int DataSocket::send_data(const char* data) {
 
     return result;
 }
-

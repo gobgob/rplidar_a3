@@ -1,21 +1,25 @@
-#ifndef LIDAR_COM_HPP
-#define LIDAR_COM_HPP
+#ifndef DATA_SOCKET_HPP
+#define DATA_SOCKET_HPP
 
-#include <iostream>
+#ifdef _WIN32
+#include <windows.h>
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
-#include <libnet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
 
-class DataSocket {
+class DataSocket
+{
 public:
-	int server_socket=0;
-	int client_socket=0;
-	struct sockaddr_in server_address;
-	DataSocket(const char *address_string, uint16_t server_port);
+	DataSocket();
+	int open(const char *address_string, uint16_t server_port);
 	int send_data(const char* data);
     bool accept_client();
+private:
+	int server_socket;
+	int client_socket;
+	sockaddr_in server_address;
 };
-
 
 #endif

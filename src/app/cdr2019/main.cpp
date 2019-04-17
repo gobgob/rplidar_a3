@@ -10,8 +10,12 @@
 #include <signal.h>
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
+#include "DataSocket.hpp"
+#include "delay.h"
 
 /* Settings */
+#define SERVER_ADDRESS		"127.0.0.1"
+#define SERVER_PORT			17685
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
 #define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
@@ -20,22 +24,6 @@
 
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
-#endif
-
-#ifdef _WIN32
-#include <Windows.h>
-#define delay(x)   ::Sleep(x)
-#else
-#include <unistd.h>
-static inline void delay(_word_size_t ms)
-{
-    while (ms >= 1000) {
-        usleep(1000 * 1000);
-        ms -= 1000;
-    };
-    if (ms != 0)
-        usleep(ms * 1000);
-}
 #endif
 
 using namespace rp::standalone::rplidar;
@@ -81,6 +69,7 @@ int main(int argc, const char * argv[])
     signal(SIGINT, ctrlc);
     printf("SDK Version: RPLIDAR_SDK_VERSION\n");
 
+	DataSocket output_socket(SERVER_ADDRESS, SERVER_PORT);
     const char * opt_com_path = DEFAULT_SERIAL_PORT;
     _u32 opt_com_baudrate = DEFAULT_BAUDRATE;
     uint8_t motor_speed = DEFAULT_MOTOR_SPEED;
@@ -145,7 +134,7 @@ int main(int argc, const char * argv[])
         if (IS_OK(op_result))
         {// print out the device serial number, firmware and hardware version number..
             printf("RPLIDAR S/N: ");
-            for (int pos = 0; pos < 16 ;++pos) {
+            for (int pos = 0; pos < 16; pos++) {
                 printf("%02X", devinfo.serialnum[pos]);
             }
             printf("\nFirmware Ver: %d.%02d\nHardware Rev: %d\n",
