@@ -299,6 +299,7 @@ int raw_serial::waitforrecv(_u32 timeout, size_t * returned_size)
 
 int raw_serial::waitfordata(size_t data_count, _u32 timeout, size_t * returned_size)
 {
+    _u32 startTs = getms();
     size_t length = 0;
     if (returned_size==NULL) returned_size=(size_t *)&length;
     *returned_size = 0;
@@ -331,6 +332,10 @@ int raw_serial::waitfordata(size_t data_count, _u32 timeout, size_t * returned_s
 
     while ( isOpened() )
     {
+        if ((getms() - startTs) > timeout) {
+            return ANS_TIMEOUT;
+        }
+
         /* Do the select */
         int n = ::select(max_fd, &input_set, NULL, NULL, &timeout_val);
 

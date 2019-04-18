@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-//#include <wiringPi.h>
+#include <wiringPi.h>
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 #include "DataSocket.hpp"
@@ -21,7 +21,7 @@
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
 #define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
-#define MAX_FAILURE_COUNT   1       // maximum consecutive scan failures allowed before restarting the lidar
+#define MAX_FAILURE_COUNT   0       // maximum consecutive scan failures allowed before restarting the lidar
 #define SORT_OUTPUT_DATA    1       // 1 => output data will be sorted by angle; 0 => output unsorted
 #define LIDAR_SCAN_MODE     RPLIDAR_CONF_SCAN_COMMAND_BOOST
 #define OUTPUT_BUFFER_SIZE  100
@@ -33,7 +33,7 @@
 using namespace rp::standalone::rplidar;
 
 /* PWM handler */
-rpiPWM1 pwm(25000.0, 256, 0.0, rpiPWM1::PWMMODE);
+// rpiPWM1 pwm_handler(25000.0, 256, 1.0, rpiPWM1::PWMMODE);
 
 /* Signal handler for CTRL+C */
 bool ctrl_c_pressed = false;
@@ -52,7 +52,7 @@ bool checkRPLIDARHealth(RPlidarDriver * drv)
     if (IS_OK(op_result)) {
         printf("RPLidar health status : %d\n", healthinfo.status);
         if (healthinfo.status == RPLIDAR_STATUS_ERROR) {
-            fprintf(stderr, "Error, rplidar internal error detected. Please reboot the device to retry.\n");
+            fprintf(stderr, "Error, rplidar internal error detected.\n");
             return false;
         }
         else {
@@ -68,20 +68,21 @@ bool checkRPLIDARHealth(RPlidarDriver * drv)
 /* Set the rotation speed of the Lidar */
 void runMotor(uint8_t pwm)
 {
-    pwm.setDutyCycleCount(pwm);
-//    if (pwm == 0) {
-//        digitalWrite(12, LOW);
-//    }
-//    else {
-//        digitalWrite(12, HIGH);
-//    }
+    printf("run motor: %u\n", pwm);
+    // pwm_handler.setDutyCycleCount(pwm);
+    if (pwm == 0) {
+        digitalWrite(12, LOW);
+    }
+    else {
+        digitalWrite(12, HIGH);
+    }
 }
 
 int main(int argc, const char * argv[])
 {
     signal(SIGINT, ctrlc);
-    //wiringPiSetupGpio();
-    //pinMode(12, OUTPUT);
+    wiringPiSetupGpio();
+    pinMode(12, OUTPUT);
     printf("SDK Version: %s\n", RPLIDAR_SDK_VERSION);
 
 	DataSocket output_socket;
@@ -132,6 +133,7 @@ int main(int argc, const char * argv[])
     }
 
     // try to open the serial port
+    printf("try to open the serial port\n");
     if(IS_FAIL(drv->connect(opt_com_path, opt_com_baudrate)))
     {
         fprintf(stderr, "Error, cannot bind to the specified serial port %s, exit\n"
@@ -140,10 +142,10 @@ int main(int argc, const char * argv[])
         drv = NULL;
         exit(-3);
     }
-
     printf("Serial port %s opened with baudrate %u\n", opt_com_path, opt_com_baudrate);
     
     // try to open the output socket
+    printf("try to open the output socket\n");
     int ret = output_socket.open(SERVER_ADDRESS, SERVER_PORT);
     if (ret != 0) {
         fprintf(stderr, "Error, cannot open the socket %s:%u, exit\n",
@@ -152,7 +154,6 @@ int main(int argc, const char * argv[])
         drv = NULL;
         exit(ret);
     }
-
     printf("Socket opened on %s:%u\n", SERVER_ADDRESS, SERVER_PORT);
 
     while (!ctrl_c_pressed)
@@ -160,6 +161,7 @@ int main(int argc, const char * argv[])
         output_socket.accept_client();
 
         // Try to get S/N from the lidar
+        printf("getDeviceInfo\n");
         op_result = drv->getDeviceInfo(devinfo);
         if (IS_OK(op_result))
         {// print out the device serial number, firmware and hardware version number..
@@ -182,13 +184,14 @@ int main(int argc, const char * argv[])
         // check health...
         if (!checkRPLIDARHealth(drv)) {
             drv->reset();
-            delay(1000);
+            delay((unsigned long long)1000);
             continue;
         }
 
         // spin motor...
         runMotor(motor_speed);
         // start scan...
+        printf("startScanExpress\n");
         op_result = drv->startScanExpress(false, LIDAR_SCAN_MODE, 0, &scanmode);
         if (IS_FAIL(op_result)) {
             drv->stop();
@@ -203,25 +206,30 @@ int main(int argc, const char * argv[])
         {
             output_socket.accept_client();
             size_t count = _countof(nodes);
+            printf("grabScanDataHq\n");
             op_result = drv->grabScanDataHq(nodes, count);
             if (IS_FAIL(op_result)) {
                 fail_count++;
+                printf("grabScanDataHq FAILED %d\n", fail_count);
                 continue;
             }
 
 #if SORT_OUTPUT_DATA
+            printf("ascendScanData\n");
             op_result = drv->ascendScanData(nodes, count);
             if (IS_FAIL(op_result)) {
                 fail_count++;
+                printf("ascendScanData FAILED %d\n", fail_count);
                 continue;
             }
 #endif
+            printf("--");
             for (size_t pos = 0; pos < count ; pos++)
             {
                 float angle_deg = nodes[pos].angle_z_q14 * 90.f / 16384.0f;
                 float dist_mm = nodes[pos].dist_mm_q2 / 4.0f;
                 uint8_t quality = nodes[pos].quality;
-                printf("Theta: %03.2f Dist: %08.2f Q: %u\n", angle_deg, dist_mm, quality);
+                //printf("Theta: %03.2f Dist: %08.2f Q: %u\n", angle_deg, dist_mm, quality);
                 int ret = snprintf(output_buffer, OUTPUT_BUFFER_SIZE,
                     "%.4f:%.2f:%u;", angle_deg, dist_mm, quality);
                 if (ret < 0) {
@@ -232,9 +240,13 @@ int main(int argc, const char * argv[])
                     fprintf(stderr, "Output buffer is too small\n");
                     continue;
                 }
+                printf("S");
                 output_socket.send_data(output_buffer);
             }
+            printf("\n");
+            printf("send_data M\n");
             output_socket.send_data("M");
+            delay((unsigned long long)10);
             fail_count = 0;
         }
         if (!ctrl_c_pressed) {
@@ -244,7 +256,9 @@ int main(int argc, const char * argv[])
         }
     }
 
+    printf("End of program\n");
     drv->stop();
+    drv->disconnect();
     runMotor(0);
     RPlidarDriver::DisposeDriver(drv);
     drv = NULL;
