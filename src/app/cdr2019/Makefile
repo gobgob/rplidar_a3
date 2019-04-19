@@ -25,12 +25,11 @@ include $(HOME_TREE)/mak_def.inc
 
 CXXSRC += main.cpp
 CXXSRC += DataSocket.cpp
-CXXSRC += rpiPWM1.cpp
 C_INCLUDES += -I$(CURDIR) 
 C_INCLUDES += -I$(CURDIR)/../../sdk/include -I$(CURDIR)/../../sdk/src
 
 EXTRA_OBJ := 
-LD_LIBS += -lstdc++ -lpthread -lm -lwiringPi
+LD_LIBS += -lstdc++ -lpthread -lm -lpigpio -lrt
 
 all: build_app
 

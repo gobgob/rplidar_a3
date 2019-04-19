@@ -8,19 +8,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <wiringPi.h>
+#include <pigpio.h>
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 #include "DataSocket.hpp"
 #include "delay.h"
-#include "rpiPWM1.h"
 
 /* Settings */
 #define SERVER_ADDRESS      "127.0.0.1"
 #define SERVER_PORT         17685
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
-#define DEFAULT_MOTOR_SPEED 165     // 8-bit PWM (default is 65% of the maximum speed)
+#define DEFAULT_MOTOR_SPEED 65.0    // % of the maximum speed
 #define MAX_FAILURE_COUNT   0       // maximum consecutive scan failures allowed before restarting the lidar
 #define SORT_OUTPUT_DATA    1       // 1 => output data will be sorted by angle; 0 => output unsorted
 #define LIDAR_SCAN_MODE     RPLIDAR_CONF_SCAN_COMMAND_BOOST
@@ -31,9 +30,6 @@
 #endif
 
 using namespace rp::standalone::rplidar;
-
-/* PWM handler */
-// rpiPWM1 pwm_handler(25000.0, 256, 1.0, rpiPWM1::PWMMODE);
 
 /* Signal handler for CTRL+C */
 bool ctrl_c_pressed = false;
@@ -66,29 +62,26 @@ bool checkRPLIDARHealth(RPlidarDriver * drv)
 }
 
 /* Set the rotation speed of the Lidar */
-void runMotor(uint8_t pwm)
+void runMotor(float pwm)
 {
-    printf("run motor: %u\n", pwm);
-    // pwm_handler.setDutyCycleCount(pwm);
-    if (pwm == 0) {
-        digitalWrite(12, LOW);
-    }
-    else {
-        digitalWrite(12, HIGH);
-    }
+    unsigned long _pwm = (float)PI_HW_PWM_RANGE * (pwm / 100.0);
+    printf("run motor: %g\n", pwm);
+    gpioHardwarePWM(12, 25000, _pwm);
 }
 
 int main(int argc, const char * argv[])
 {
     signal(SIGINT, ctrlc);
-    wiringPiSetupGpio();
-    pinMode(12, OUTPUT);
+    gpioInitialise();
+    gpioSetSignalFunc(SIGINT, ctrlc);
+    gpioSetMode(12, PI_ALT0);
+    runMotor(0);
     printf("SDK Version: %s\n", RPLIDAR_SDK_VERSION);
 
 	DataSocket output_socket;
     const char * opt_com_path = DEFAULT_SERIAL_PORT;
     _u32 opt_com_baudrate = DEFAULT_BAUDRATE;
-    uint8_t motor_speed = DEFAULT_MOTOR_SPEED;
+    unsigned long motor_speed = DEFAULT_MOTOR_SPEED;
     u_result op_result;
     rplidar_response_device_info_t devinfo;
     RplidarScanMode scanmode;
@@ -206,7 +199,6 @@ int main(int argc, const char * argv[])
         {
             output_socket.accept_client();
             size_t count = _countof(nodes);
-            printf("grabScanDataHq\n");
             op_result = drv->grabScanDataHq(nodes, count);
             if (IS_FAIL(op_result)) {
                 fail_count++;
@@ -215,7 +207,6 @@ int main(int argc, const char * argv[])
             }
 
 #if SORT_OUTPUT_DATA
-            printf("ascendScanData\n");
             op_result = drv->ascendScanData(nodes, count);
             if (IS_FAIL(op_result)) {
                 fail_count++;
@@ -223,7 +214,6 @@ int main(int argc, const char * argv[])
                 continue;
             }
 #endif
-            printf("--");
             for (size_t pos = 0; pos < count ; pos++)
             {
                 float angle_deg = nodes[pos].angle_z_q14 * 90.f / 16384.0f;
@@ -240,11 +230,8 @@ int main(int argc, const char * argv[])
                     fprintf(stderr, "Output buffer is too small\n");
                     continue;
                 }
-                printf("S");
                 output_socket.send_data(output_buffer);
             }
-            printf("\n");
-            printf("send_data M\n");
             output_socket.send_data("M");
             delay((unsigned long long)10);
             fail_count = 0;
@@ -262,5 +249,6 @@ int main(int argc, const char * argv[])
     runMotor(0);
     RPlidarDriver::DisposeDriver(drv);
     drv = NULL;
+    gpioTerminate();
     return 0;
 }

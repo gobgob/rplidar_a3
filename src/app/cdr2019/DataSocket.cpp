@@ -78,7 +78,7 @@ bool DataSocket::accept_client()
 		for (size_t i = 0; i < DATA_SOCKET_MAX_CLIENT; i++) {
 			if (clients_socket[i] <= 0) {
 				clients_socket[i] = new_client;
-				printf("Client #%lu connected\n", i);
+				printf("Client #%u connected\n", i);
 				return true;
 			}
 		}
@@ -96,11 +96,11 @@ int DataSocket::send_data(const char* data)
 		int ret = send(clients_socket[i], data, strlen(data), MSG_NOSIGNAL);
 		if (ret < 0) {
 			if (errno==EPIPE || errno==ECONNRESET) {
-				printf("Client #%lu disconnected\n", i);
+				printf("Client #%u disconnected\n", i);
 			}
 			else {
 				ret_code = -1;
-				fprintf(stderr, "Failed to send data to client #%lu\n", i);
+				fprintf(stderr, "Failed to send data to client #%u\n", i);
 			}
 			shutdown(clients_socket[i], SHUT_RDWR);
 			clients_socket[i] = 0;
