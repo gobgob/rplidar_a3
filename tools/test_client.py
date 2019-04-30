@@ -3,7 +3,7 @@
 
 import socket
 import time
-hote = "127.0.0.1"
+hote = "172.24.1.1"
 port = 17685
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

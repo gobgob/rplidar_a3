@@ -15,15 +15,23 @@
 #include "delay.h"
 
 /* Settings */
-#define SERVER_ADDRESS      "127.0.0.1"
+#define SERVER_ADDRESS      "172.24.1.1"
 #define SERVER_PORT         17685
 #define DEFAULT_SERIAL_PORT "/dev/ttyAMA0"
 #define DEFAULT_BAUDRATE    256000
 #define DEFAULT_MOTOR_SPEED 65.0    // % of the maximum speed
 #define MAX_FAILURE_COUNT   0       // maximum consecutive scan failures allowed before restarting the lidar
 #define SORT_OUTPUT_DATA    1       // 1 => output data will be sorted by angle; 0 => output unsorted
-#define LIDAR_SCAN_MODE     RPLIDAR_CONF_SCAN_COMMAND_BOOST
 #define OUTPUT_BUFFER_SIZE  100
+
+/*
+    Mode 0 (Standard) 3.96825 kHz
+    Mode 1 (Express) 7.93651 kHz
+    Mode 2 (Boost) 15.873 kHz
+    Mode 3 (Sensitivity) 15.873 kHz
+    Mode 4 (Stability) 10 kHz
+*/
+#define LIDAR_SCAN_MODE     2
 
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
@@ -151,6 +159,7 @@ int main(int argc, const char * argv[])
 
     while (!ctrl_c_pressed)
     {
+        output_socket.send_data("M"); // Release unused client slots and show that program is up
         output_socket.accept_client();
 
         // Try to get S/N from the lidar
@@ -190,8 +199,11 @@ int main(int argc, const char * argv[])
             drv->stop();
             runMotor(0);
             fprintf(stderr, "Failed to start scan\n");
+            delay((unsigned long long)1000);
             continue;
         }
+        printf("Scan mode: %u (%s) at %g kHz\n", scanmode.id, scanmode.scan_mode,
+            1000.0 / scanmode.us_per_sample);
 
         // fetch results and print them out...
         int fail_count = 0;
