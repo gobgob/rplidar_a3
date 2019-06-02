@@ -1,5 +1,11 @@
 # RPLIDAR A3
 
+Code supposed to be used for the France robotics cup 2019:
+
+Code works with https://github.com/gobgob/chariot-elevateur.
+
+It works on Raspberry PI's GPIO.
+
 ### Sources:
 
 - [the official RPLidar's SDK](https://github.com/Slamtec/rplidar_sdk)
